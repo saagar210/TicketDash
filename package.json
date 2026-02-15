@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "clean": "node -e \"const fs=require('fs');for(const p of ['node_modules','dist','src-tauri/target','.codex_audit','.DS_Store','src/.DS_Store','src-tauri/.DS_Store']){fs.rmSync(p,{recursive:true,force:true,maxRetries:8,retryDelay:100});}\"",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
@@ -31,14 +32,14 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "@eslint/js": "^10.0.1",
+    "@eslint/js": "^9.39.1",
     "@tailwindcss/vite": "^4.1.18",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.9.1",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
-    "eslint": "^10.0.0",
+    "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.0.1",
     "jsdom": "^28.1.0",
