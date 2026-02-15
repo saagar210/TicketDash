@@ -4,9 +4,7 @@ use serde::Deserialize;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CategoryRule {
-    pub id: String,
     pub name: String,
-    pub color: String,
     pub conditions: Vec<RuleCondition>,
     #[serde(rename = "matchMode")]
     pub match_mode: MatchMode,
@@ -98,9 +96,7 @@ mod tests {
         };
 
         let rules = vec![CategoryRule {
-            id: "pwd-1".to_string(),
             name: "Password".to_string(),
-            color: "#ef4444".to_string(),
             conditions: vec![RuleCondition {
                 field: "summary".to_string(),
                 operator: "contains".to_string(),
@@ -134,9 +130,7 @@ mod tests {
         };
 
         let rules = vec![CategoryRule {
-            id: "vpn-1".to_string(),
             name: "VPN".to_string(),
-            color: "#3b82f6".to_string(),
             conditions: vec![RuleCondition {
                 field: "summary".to_string(),
                 operator: "contains".to_string(),

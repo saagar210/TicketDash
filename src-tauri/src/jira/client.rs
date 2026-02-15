@@ -2,6 +2,7 @@ use crate::errors::{AppError, JiraError};
 use crate::jira::types::JiraSearchResponse;
 use crate::models::Ticket;
 use base64::Engine;
+use chrono::DateTime;
 
 pub struct JiraClient {
     base_url: String,
@@ -28,23 +29,12 @@ impl JiraClient {
         format!("Basic {}", encoded)
     }
 
-    pub async fn fetch_tickets(
-        &self,
-        last_sync_ts: Option<&str>,
-    ) -> Result<Vec<Ticket>, AppError> {
+    pub async fn fetch_tickets(&self, last_sync_ts: Option<&str>) -> Result<Vec<Ticket>, AppError> {
         let mut all_tickets = Vec::new();
         let mut next_page_token: Option<String> = None;
+        let jql = Self::build_jql(last_sync_ts);
 
         loop {
-            let jql = if let Some(ts) = last_sync_ts {
-                format!(
-                    "assignee = currentUser() AND updated >= \"{}\" ORDER BY updated ASC",
-                    ts
-                )
-            } else {
-                "assignee = currentUser() ORDER BY created DESC".to_string()
-            };
-
             let response = self.search_jql(&jql, next_page_token.as_deref()).await?;
 
             for issue in response.issues {
@@ -61,23 +51,58 @@ impl JiraClient {
         Ok(all_tickets)
     }
 
+    fn build_jql(last_sync_ts: Option<&str>) -> String {
+        if let Some(ts) = last_sync_ts {
+            if let Ok(parsed) = DateTime::parse_from_rfc3339(ts) {
+                let normalized = parsed.to_rfc3339();
+                return format!(
+                    "assignee = currentUser() AND updated >= \"{}\" ORDER BY updated ASC",
+                    normalized
+                );
+            }
+
+            log::warn!(
+                "Invalid last_sync_at value '{}'; falling back to full sync query",
+                ts
+            );
+        }
+
+        "assignee = currentUser() ORDER BY created DESC".to_string()
+    }
+
     async fn search_jql(
         &self,
         jql: &str,
         next_page_token: Option<&str>,
     ) -> Result<JiraSearchResponse, AppError> {
-        let mut body = serde_json::json!({
-            "jql": jql,
-            "maxResults": 100,
-            "fields": [
-                "summary", "status", "priority", "issuetype",
-                "assignee", "reporter", "created", "updated",
-                "resolutiondate", "labels", "project"
-            ]
-        });
+        let mut body = serde_json::Map::new();
+        body.insert(
+            "jql".to_string(),
+            serde_json::Value::String(jql.to_string()),
+        );
+        body.insert("maxResults".to_string(), serde_json::Value::from(100_u64));
+        body.insert(
+            "fields".to_string(),
+            serde_json::Value::Array(vec![
+                serde_json::Value::String("summary".to_string()),
+                serde_json::Value::String("status".to_string()),
+                serde_json::Value::String("priority".to_string()),
+                serde_json::Value::String("issuetype".to_string()),
+                serde_json::Value::String("assignee".to_string()),
+                serde_json::Value::String("reporter".to_string()),
+                serde_json::Value::String("created".to_string()),
+                serde_json::Value::String("updated".to_string()),
+                serde_json::Value::String("resolutiondate".to_string()),
+                serde_json::Value::String("labels".to_string()),
+                serde_json::Value::String("project".to_string()),
+            ]),
+        );
 
         if let Some(token) = next_page_token {
-            body["nextPageToken"] = serde_json::json!(token);
+            body.insert(
+                "nextPageToken".to_string(),
+                serde_json::Value::String(token.to_string()),
+            );
         }
 
         let url = format!("{}/search/jql", self.base_url);
@@ -86,7 +111,7 @@ impl JiraClient {
             .post(&url)
             .header("Authorization", &self.auth_header)
             .header("Content-Type", "application/json")
-            .json(&body)
+            .json(&serde_json::Value::Object(body))
             .send()
             .await
             .map_err(JiraError::from)?;
@@ -149,5 +174,25 @@ impl JiraClient {
             project_key: issue.fields.project.key,
             category: None, // Will be set by categorizer
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::JiraClient;
+
+    #[test]
+    fn build_jql_uses_incremental_query_for_valid_rfc3339() {
+        let jql = JiraClient::build_jql(Some("2025-01-01T00:00:00Z"));
+        assert_eq!(
+            jql,
+            "assignee = currentUser() AND updated >= \"2025-01-01T00:00:00+00:00\" ORDER BY updated ASC"
+        );
+    }
+
+    #[test]
+    fn build_jql_falls_back_to_full_query_for_invalid_timestamp() {
+        let jql = JiraClient::build_jql(Some("not-a-timestamp"));
+        assert_eq!(jql, "assignee = currentUser() ORDER BY created DESC");
     }
 }

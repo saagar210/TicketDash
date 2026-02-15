@@ -1,5 +1,5 @@
-use chrono::{Datelike, Duration, NaiveDateTime, NaiveTime, Weekday};
 use crate::errors::AppError;
+use chrono::{Datelike, Duration, NaiveDateTime, NaiveTime, Weekday};
 
 pub fn business_hours_between(
     start: NaiveDateTime,
@@ -26,8 +26,9 @@ pub fn business_hours_between(
         return Ok(0.0);
     }
 
-    let work_start = NaiveTime::from_hms_opt(work_start_hour, 0, 0)
-        .ok_or_else(|| AppError::Internal(format!("Invalid work start hour: {}", work_start_hour)))?;
+    let work_start = NaiveTime::from_hms_opt(work_start_hour, 0, 0).ok_or_else(|| {
+        AppError::Internal(format!("Invalid work start hour: {}", work_start_hour))
+    })?;
     let work_end = NaiveTime::from_hms_opt(work_end_hour, 0, 0)
         .ok_or_else(|| AppError::Internal(format!("Invalid work end hour: {}", work_end_hour)))?;
     let mut total_minutes: i64 = 0;

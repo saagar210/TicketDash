@@ -10,10 +10,10 @@ pub struct Ticket {
     pub issue_type: String,
     pub assignee: Option<String>,
     pub reporter: Option<String>,
-    pub created_at: String,       // ISO 8601
-    pub updated_at: String,       // ISO 8601
+    pub created_at: String,          // ISO 8601
+    pub updated_at: String,          // ISO 8601
     pub resolved_at: Option<String>, // ISO 8601
-    pub labels: String,           // comma-separated
+    pub labels: String,              // comma-separated
     pub project_key: String,
     pub category: Option<String>, // computed locally
 }

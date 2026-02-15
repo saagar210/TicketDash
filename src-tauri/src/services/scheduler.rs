@@ -1,4 +1,3 @@
-use crate::db::DbPool;
 use crate::errors::AppError;
 use std::sync::Arc;
 use tauri::Emitter;
@@ -52,18 +51,16 @@ impl SyncScheduler {
                 app_handle.emit("background-sync-started", ()).ok();
 
                 // Perform sync (call the sync logic without the lock check)
-                match perform_background_sync(&db_pool, &jira_url, &email, &category_rules_json).await {
+                match perform_background_sync(&db_pool, &jira_url, &email, &category_rules_json)
+                    .await
+                {
                     Ok(count) => {
                         log::info!("Background sync completed: {} tickets", count);
-                        app_handle
-                            .emit("background-sync-complete", count)
-                            .ok();
+                        app_handle.emit("background-sync-complete", count).ok();
                     }
                     Err(e) => {
                         log::error!("Background sync failed: {}", e);
-                        app_handle
-                            .emit("background-sync-error", e.to_string())
-                            .ok();
+                        app_handle.emit("background-sync-error", e.to_string()).ok();
                     }
                 }
             }
@@ -84,7 +81,7 @@ async fn perform_background_sync(
     category_rules_json: &str,
 ) -> Result<usize, AppError> {
     // Get token
-    let token = crate::commands::settings::get_jira_token().await?;
+    let token = crate::commands::settings::get_jira_token_internal().await?;
 
     // Parse category rules
     let rules_wrapper: crate::commands::sync::CategoryRulesWrapper =

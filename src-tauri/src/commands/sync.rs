@@ -1,5 +1,5 @@
 use crate::db::{get_sync_metadata, set_sync_metadata, upsert_ticket, DbPool};
-use crate::errors::AppError;
+use crate::errors::{AppError, DbError};
 use crate::jira::JiraClient;
 use crate::services::categorize_ticket;
 use serde::{Deserialize, Serialize};
@@ -65,13 +65,11 @@ async fn perform_sync(
     app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, AppError> {
     // Get token
-    let token = super::settings::get_jira_token().await?;
+    let token = super::settings::get_jira_token_internal().await?;
 
     // Parse category rules
-    let rules_wrapper: CategoryRulesWrapper =
-        serde_json::from_str(&category_rules_json).map_err(|e| {
-            AppError::Config(format!("Failed to parse category rules: {}", e))
-        })?;
+    let rules_wrapper: CategoryRulesWrapper = serde_json::from_str(&category_rules_json)
+        .map_err(|e| AppError::Config(format!("Failed to parse category rules: {}", e)))?;
     let category_rules = rules_wrapper.category_rules;
 
     // Create Jira client
@@ -80,9 +78,7 @@ async fn perform_sync(
     // Get last sync timestamp
     let db_clone = db.0.clone();
     let last_sync_ts = tauri::async_runtime::spawn_blocking(move || {
-        let conn = db_clone
-            .lock()
-            .map_err(|_| AppError::Internal("Lock failed".to_string()))?;
+        let conn = db_clone.lock().map_err(|_| DbError::LockFailed)?;
         get_sync_metadata(&conn, "last_sync_at")
     })
     .await
@@ -153,9 +149,7 @@ async fn perform_sync(
     // Store in database
     let db_clone = db.0.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let conn = db_clone
-            .lock()
-            .map_err(|_| AppError::Internal("Lock failed".to_string()))?;
+        let conn = db_clone.lock().map_err(|_| DbError::LockFailed)?;
 
         for ticket in &tickets {
             upsert_ticket(&conn, ticket)?;
@@ -170,28 +164,39 @@ async fn perform_sync(
     .await
     .map_err(|_| AppError::Internal("Task join failed".to_string()))??;
 
-    Ok(serde_json::json!({
-        "synced": synced_count,
-        "errors": 0,
-        "last_sync": chrono::Utc::now().to_rfc3339()
-    }))
+    let mut response = serde_json::Map::new();
+    response.insert(
+        "synced".to_string(),
+        serde_json::Value::from(synced_count as u64),
+    );
+    response.insert("errors".to_string(), serde_json::Value::from(0_u64));
+    response.insert(
+        "last_sync".to_string(),
+        serde_json::Value::String(chrono::Utc::now().to_rfc3339()),
+    );
+
+    Ok(serde_json::Value::Object(response))
 }
 
 #[tauri::command]
 pub async fn get_sync_status(db: tauri::State<'_, DbPool>) -> Result<serde_json::Value, AppError> {
     let db_clone = db.0.clone();
     let last_sync_at = tauri::async_runtime::spawn_blocking(move || {
-        let conn = db_clone
-            .lock()
-            .map_err(|_| AppError::Internal("Lock failed".to_string()))?;
+        let conn = db_clone.lock().map_err(|_| DbError::LockFailed)?;
         get_sync_metadata(&conn, "last_sync_at")
     })
     .await
     .map_err(|_| AppError::Internal("Task join failed".to_string()))??;
 
-    Ok(serde_json::json!({
-        "is_syncing": false,
-        "last_sync_at": last_sync_at,
-        "last_error": null
-    }))
+    let mut response = serde_json::Map::new();
+    response.insert("is_syncing".to_string(), serde_json::Value::Bool(false));
+    response.insert(
+        "last_sync_at".to_string(),
+        last_sync_at
+            .map(serde_json::Value::String)
+            .unwrap_or(serde_json::Value::Null),
+    );
+    response.insert("last_error".to_string(), serde_json::Value::Null);
+
+    Ok(serde_json::Value::Object(response))
 }

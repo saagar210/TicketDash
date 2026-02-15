@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[allow(clippy::disallowed_methods)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -26,7 +27,8 @@ pub fn run() {
                 .map_err(|e| format!("Failed to create app directory at {:?}: {}", app_dir, e))?;
 
             let db_path: PathBuf = app_dir.join("tickets.db");
-            let db_path_str = db_path.to_str()
+            let db_path_str = db_path
+                .to_str()
                 .ok_or_else(|| format!("Invalid DB path: {:?}", db_path))?;
 
             let db_pool = DbPool::new(db_path_str)
@@ -39,7 +41,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             store_jira_token,
-            get_jira_token,
             delete_jira_token,
             verify_jira_connection,
             save_jira_settings,

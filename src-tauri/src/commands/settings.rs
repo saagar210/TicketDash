@@ -1,4 +1,5 @@
 use crate::errors::AppError;
+use crate::errors::JiraError;
 use keyring::Entry;
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -15,27 +16,28 @@ pub struct JiraSettings {
 
 #[tauri::command]
 pub async fn store_jira_token(token: String) -> Result<(), AppError> {
-    let entry = Entry::new(SERVICE_NAME, KEYRING_USER)
-        .map_err(|e| AppError::Keyring(e.to_string()))?;
+    let entry =
+        Entry::new(SERVICE_NAME, KEYRING_USER).map_err(|e| AppError::Keyring(e.to_string()))?;
     entry
         .set_password(&token)
         .map_err(|e| AppError::Keyring(e.to_string()))?;
     Ok(())
 }
 
-#[tauri::command]
-pub async fn get_jira_token() -> Result<String, AppError> {
-    let entry = Entry::new(SERVICE_NAME, KEYRING_USER)
-        .map_err(|e| AppError::Keyring(e.to_string()))?;
-    entry
-        .get_password()
-        .map_err(|e| AppError::Keyring(e.to_string()))
+pub(crate) async fn get_jira_token_internal() -> Result<String, AppError> {
+    let entry =
+        Entry::new(SERVICE_NAME, KEYRING_USER).map_err(|e| AppError::Keyring(e.to_string()))?;
+    match entry.get_password() {
+        Ok(token) => Ok(token),
+        Err(keyring::Error::NoEntry) => Err(JiraError::NotConfigured.into()),
+        Err(e) => Err(AppError::Keyring(e.to_string())),
+    }
 }
 
 #[tauri::command]
 pub async fn delete_jira_token() -> Result<(), AppError> {
-    let entry = Entry::new(SERVICE_NAME, KEYRING_USER)
-        .map_err(|e| AppError::Keyring(e.to_string()))?;
+    let entry =
+        Entry::new(SERVICE_NAME, KEYRING_USER).map_err(|e| AppError::Keyring(e.to_string()))?;
     entry
         .delete_credential()
         .map_err(|e| AppError::Keyring(e.to_string()))?;
@@ -47,16 +49,17 @@ pub async fn verify_jira_connection(
     jira_url: String,
     email: String,
 ) -> Result<serde_json::Value, AppError> {
-    let token = get_jira_token().await?;
+    let token = get_jira_token_internal().await?;
     let client = crate::jira::JiraClient::new(&jira_url, &email, &token)?;
 
     // Simple verification: try to fetch 1 ticket
     let _ = client.fetch_tickets(None).await?;
 
-    Ok(serde_json::json!({
-        "email": email,
-        "connected": true
-    }))
+    let mut response = serde_json::Map::new();
+    response.insert("email".to_string(), serde_json::Value::String(email));
+    response.insert("connected".to_string(), serde_json::Value::Bool(true));
+
+    Ok(serde_json::Value::Object(response))
 }
 
 #[tauri::command]
