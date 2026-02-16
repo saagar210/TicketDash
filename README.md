@@ -160,16 +160,32 @@ TicketDash/
 # Development
 npm run dev              # Run Vite dev server only
 npm run tauri dev        # Run full Tauri app in dev mode
+npm run lean:dev         # Run Tauri in low-disk lean mode (ephemeral caches)
 
 # Building
 npm run build            # Build frontend
 npm run tauri build      # Build production app
 
 # Testing
-cargo test               # Run Rust tests
+npm run test             # Run frontend tests once
 npm run lint             # Lint frontend code
-npm run type-check       # TypeScript type checking
+
+# Cleanup
+npm run clean:heavy      # Remove heavy build artifacts only (keeps dependencies)
+npm run clean:full       # Remove all reproducible local caches (includes node_modules)
 ```
+
+### Normal Dev vs Lean Dev
+
+- **Normal dev (`npm run tauri dev`)**: fastest repeated startup because Rust/Vite build caches stay in the repo (`src-tauri/target`, `node_modules/.vite`).
+- **Lean dev (`npm run lean:dev`)**: uses temporary cache locations for Rust and Vite, and auto-cleans heavy artifacts when you exit. This keeps project disk usage low but increases startup/compile time.
+
+Use lean mode when disk pressure matters more than startup speed, and normal mode when you are actively iterating and want fastest rebuilds.
+
+### Cleanup Commands
+
+- `npm run clean:heavy`: safe day-to-day cleanup for generated build output and heavy caches only.
+- `npm run clean:full`: deeper cleanup that also removes reproducible dependency caches (for example `node_modules`), so the next run needs reinstall/rebuild.
 
 ### Code Standards
 - **Rust**: No `unwrap()` in production code, proper error handling with `thiserror`

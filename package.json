@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "clean": "node -e \"const fs=require('fs');for(const p of ['node_modules','dist','src-tauri/target','.codex_audit','.DS_Store','src/.DS_Store','src-tauri/.DS_Store']){fs.rmSync(p,{recursive:true,force:true,maxRetries:8,retryDelay:100});}\"",
+    "clean": "npm run clean:full",
+    "clean:heavy": "node scripts/clean-local.mjs heavy",
+    "clean:full": "node scripts/clean-local.mjs full",
+    "lean:dev": "bash scripts/lean-dev.sh",
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
